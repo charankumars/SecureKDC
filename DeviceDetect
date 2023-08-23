@@ -1,0 +1,54 @@
+import java.io.File; //check the files directories
+
+public class DeviceDetect { 
+	// setting from, to, subject and text for mailing
+	static String from = "From_mail_id";
+	static String to = "To_mail_id";
+	static String subject = "External device ";
+	static String text = "External device Detected \n";
+	 
+	// getting old directory details
+static File[] oldListRoot = File.listRoots();
+
+//notifying user
+public static void waitForNotifying() {
+    Thread t = new Thread(new Runnable() {
+        public void run() {
+            while (true) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                
+                //checking the length of directory incresed
+                if (File.listRoots().length > oldListRoot.length) {
+                	//setting subject, text for mail
+                	subject = subject + "Connected in IP address: " + CopyPasteDetector.systemIPAddress();
+                	oldListRoot = File.listRoots();
+                	text = text + "Connected in IP address: " + CopyPasteDetector.systemIPAddress() + "\n Drive detected: " + oldListRoot[oldListRoot.length-1];
+                    //sending mail
+                	GmailSender.sendEmil(to, from, subject, text);
+                	//initializing subject and text for avoiding concat
+                	subject = "External device ";
+                	text = "External device Detected \n";
+                } 
+                //checking the length of directory incresed
+                else if (File.listRoots().length < oldListRoot.length) {
+                //setting subject, text for mail
+                subject = subject +" Removed in IP address: " + CopyPasteDetector.systemIPAddress();
+            	text = text + "Removed in IP address: " +CopyPasteDetector.systemIPAddress() + "\n Drive removed: " + oldListRoot[oldListRoot.length-1];
+                //sending mail
+            	GmailSender.sendEmil(to, from, subject, text);
+            	//initializing subject and text for avoiding concat
+            	subject = "External device ";
+            	text = "External device Detected \n";
+                    oldListRoot = File.listRoots();
+                }
+            }
+        }
+    });
+    // repeatedly detecting
+    t.start();
+}
+}
