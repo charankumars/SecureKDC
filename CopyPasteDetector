@@ -1,0 +1,108 @@
+import java.awt.datatransfer.Clipboard; //repository for a Transferable object and can be used for cut, copy, and paste operations
+import java.awt.datatransfer.DataFlavor; //DataFlavor is typically used to access data on the clipboard
+import java.awt.datatransfer.FlavorEvent;  //to notify interested parties that available DataFlavor s have changed in the Clipboard 
+import java.awt.datatransfer.FlavorListener; //invoked when the target Clipboard of the listener has changed its available DataFlavor
+import java.net.InetAddress;   //to get system IP address
+import java.net.UnknownHostException; //to handle exception when IP address not recived
+import java.util.Timer;  // used to schedule a time for running repeatedly
+import java.util.TimerTask;  // used to schedule a time for running repeatedly
+
+ public class CopyPasteDetector {
+	 // Setting from, to, subject and text to send mails
+	 String from = "From_mail_id";
+	 String to = "To_mail_id";
+	 String subject;
+	 String text;
+	 
+	 // getting IP address of the system
+	 public static String systemIPAddress() {
+		 try {
+	            InetAddress localhost = InetAddress.getLocalHost();
+	            String ipAddress = localhost.getHostAddress();
+	            return ipAddress;
+	        } catch (UnknownHostException e) {
+	        	// Handling exception when IP address not returned
+	            e.printStackTrace();
+	            return "Can't fetch IP address";
+	        }
+	 }
+	 
+	 // Setting maximum lines can be copied to 8
+     private static final int MAX_LINES = 8;
+     
+     //current content to compare the data copied is different or not
+     private String currentContent;
+     
+     // Detecting copy activity
+     public void copy(Clipboard clipboard) {
+        String[] previousContent = { clipboardContents(clipboard) };
+        clipboard.addFlavorListener(new FlavorListener() {
+        	// overriding flavourchanged to check data of clipboard
+            @Override
+            public void flavorsChanged(FlavorEvent e) {
+            	// getting last copied clipboard content
+                currentContent = clipboardContents(clipboard);
+                // comparing previour and current content of clipboard
+                if (currentContent != null && !currentContent.equals(previousContent[0])) {
+                	// getting number of lines
+                    int lineCount = countLines(currentContent);
+                    if (lineCount > MAX_LINES) {
+                    	// adding IP address to subject and text of mail
+                    	subject = "Copy-Paste detected in IP address: " + CopyPasteDetector.systemIPAddress();
+                    	text = "Copy-Paste Detected \n IP Address: " + CopyPasteDetector.systemIPAddress() + "\n Content copied is: " + currentContent;
+                        // Sending mail
+                    	GmailSender.sendEmil(to, from, subject, text);
+                    	// Setting current content
+                        CopyPasteDetector.this.setCurrentContent(currentContent);
+                        // initializing subject and text to avoid concat
+                        subject = "";
+                        text = "";
+                    }
+                    previousContent[0] = currentContent;
+                }
+            }
+        });
+        
+        // Setting timer to check clipboard repeatedly
+        Timer timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                currentContent = clipboardContents(clipboard);
+                if (currentContent != null && !currentContent.equals(previousContent[0])) {
+                    int lineCount = countLines(currentContent);
+                    if (lineCount > MAX_LINES) {
+                    	subject = "Copy-Paste detected in IP address: " + CopyPasteDetector.systemIPAddress();
+                    	text = "Copy-Paste Detected \n IP Address: " + CopyPasteDetector.systemIPAddress() + "\n Content copied is: " + currentContent;
+                        CopyPasteDetector.this.setCurrentContent(currentContent);
+                        subject = "";
+                        text = "";
+                    }
+                    previousContent[0] = currentContent;
+                }
+            }
+        }, 0, 1000); // Check every second
+    }
+     
+     // get the data from clipboard
+     private static String clipboardContents(Clipboard clipboard) {
+        try {
+            return (String) clipboard.getData(DataFlavor.stringFlavor);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+     
+     //counting lines
+     private static int countLines(String text) {
+        return text.split("\r\n|\r|\n").length;
+    }
+     
+     //getters and setters for current content
+     public String getCurrentContent() {
+        return currentContent;
+    }
+	public void setCurrentContent(String currentContent) {
+		this.currentContent = currentContent;
+	}
+}
